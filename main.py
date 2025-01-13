@@ -1,15 +1,9 @@
-from kivy.app import App, Builder
-from kivy.uix.widget import Widget
+from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager, Screen, NoTransition
-from kivy.properties import (
-    NumericProperty, ReferenceListProperty, ObjectProperty
-)
-from kivy.vector import Vector
-from kivy.clock import Clock
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
-from utils import Base
+from propagation_api.utils import Base
 
 
 class MainMenu(Screen):

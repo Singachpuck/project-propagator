@@ -1,6 +1,6 @@
 from sqlalchemy import Column, BigInteger, String
 
-from utils import Base
+from propagation_api.utils import Base
 
 
 class Project(Base):
