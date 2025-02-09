@@ -15,18 +15,80 @@
                 text: 'Configure Projects'
                 on_press: root.manager.current = 'configure_projects'
             Button:
+                id: btnExit
                 text: 'Quit'
+                on_press: app.stop()
 
 <PropagateProjectScreen>:
     Label:
         font_size: 70
-        center_x: root.width / 4
-        top: root.top - 50
         text: 'Propagate project'
 
 <ConfigureProjectsScreen>:
-    Label:
-        font_size: 70
-        center_x: root.width / 4
-        top: root.top - 50
-        text: 'Configure projects'
+    BoxLayout:
+        id: projectsScreenLayout
+#        size: root.size
+#        pos: root.pos
+        orientation: "vertical"
+        BoxLayout:
+            size_hint_y: None
+            height: 50
+            TextInput:
+                id: inputProjectDir
+                multiline: False
+                halign: 'center'
+                size_hint_x: .8
+#                padding: 0, 10, 0, 10
+                font_size: 24
+            Button:
+                text: 'Browse'
+                size_hint_x: .2
+                on_release: root.select_file()
+#        FileChooserListView:
+#            id: filechooser
+#            path: "D:\\projects"
+#            filters: [root.is_dir]
+        ProjectList:
+            id: projectList
+        BoxLayout:
+            size_hint_y: None
+            height: 30
+            Button:
+                text: "Cancel"
+                on_release: root.cancel()
+            Button:
+                text: "Add Project"
+                on_release: root.add_project_clicked()
+
+
+<ProjectList>:
+    viewclass: 'Label'
+    RecycleBoxLayout:
+        default_size: None, dp(56)
+        default_size_hint: 1, None
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: 'vertical'
+
+<AddProjectModal>:
+    BoxLayout:
+        orientation: 'vertical'
+        GridLayout:
+            cols: 2
+            font_size: 24
+            Label:
+                text: "Name"
+            TextInput:
+                id: projectName
+                multiline: False
+            Label:
+                text: "Path"
+            TextInput:
+                id: projectPath
+                multiline: False
+        Button:
+            text: "Confirm"
+            on_release: root.add_project_clicked()
+        Button:
+            text: "Cancel"
+            on_release: root.dismiss()

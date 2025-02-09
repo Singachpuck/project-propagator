@@ -9,3 +9,10 @@ class ProjectService:
 
     def add_project(self, project: Project):
         self.project_dao.create(project)
+
+    def get_all_projects(self):
+        return self.project_dao.getAll()
+
+    # TODO: Make flexible project refresh
+    def refresh_projects(self):
+        pass

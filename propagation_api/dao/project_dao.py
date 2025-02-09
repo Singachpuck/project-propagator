@@ -20,8 +20,48 @@ class ProjectDao(ABC):
         pass
 
     @abstractmethod
+    def getAll(self) -> list[Project]:
+        pass
+
+    @abstractmethod
     def getById(self, project_id: int):
         pass
+
+
+class InMemoryProjectDao(ProjectDao):
+
+    def __init__(self):
+        self.projects = []
+        self.id_sequence = 2
+
+        # Define a base class
+        project = Project(id=0, name="Project 1",
+                          path="D:\\projects\\project-propagator\\tests\\dummy\\projects\\project1")
+        project2 = Project(id=1, name="Project 2",
+                           path="D:\\projects\\project-propagator\\tests\\dummy\\projects\\project1")
+        self.projects.append(project)
+        self.projects.append(project2)
+
+    def create(self, project: Project):
+        project.id = self.id_sequence
+        self.projects.append(project)
+        self.id_sequence += 1
+        # TODO: return id
+        return project.id
+
+    def remove(self, project):
+        self.projects.remove(project)
+        return True
+
+    def removeById(self, project_id: int):
+        raise NotImplementedError()
+
+    def getAll(self):
+        return self.projects
+
+    def getById(self, project_id: int):
+        result = filter(lambda item: item.id == project_id, self.projects)
+        return result if len(result) > 0 else None
 
 
 class ORMProjectDao(ProjectDao):
@@ -47,7 +87,14 @@ class ORMProjectDao(ProjectDao):
         session = self.Session()
         result = session.query(Project).filter_by(id=project_id).delete()
         session.commit()
+        session.close()
         return True if result > 0 else False
+
+    def getAll(self):
+        session = self.Session()
+        result = session.query(Project).all()
+        session.close()
+        return result
 
     def getById(self, project_id: int):
         session = self.Session()
