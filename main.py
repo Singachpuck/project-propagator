@@ -1,18 +1,15 @@
-from os.path import isdir, join
-
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.uix.modalview import ModalView
 from kivy.uix.recycleview import RecycleView
 from kivy.uix.screenmanager import ScreenManager, Screen, NoTransition
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from propagation_api.dao.project_dao import ORMProjectDao, InMemoryProjectDao
+from propagation_api.dao.project_dao import InMemoryProjectDao
 from propagation_api.model.entity.project import Project
 from propagation_api.services import context
+from propagation_api.services.context import ProjectCacheState, Context
 from propagation_api.services.project_service import ProjectService
-from propagation_api.utils import Base
+from propagation_api.services.pubsub.pubsub_model import Subscriber, Event
 
 
 class MainMenu(Screen):
@@ -24,8 +21,6 @@ class PropagateProjectScreen(Screen):
 
 
 class ConfigureProjectsScreen(Screen):
-    # def is_dir(self, directory, filename):
-    #     return isdir(join(directory, filename))
 
     def select_file(self):
         from plyer import filechooser
@@ -39,25 +34,64 @@ class ConfigureProjectsScreen(Screen):
         add_project_modal = AddProjectModal(self.ids.inputProjectDir.text)
         add_project_modal.open()
 
-        add_project_modal.bind(on_pre_dismiss=lambda _: self.ids.projectList.refresh())
-
 
 class ProjectList(RecycleView):
     def __init__(self, **kwargs):
-        super(ProjectList, self).__init__(**kwargs)
-        self.project_service = context.get_project_service()
+        super().__init__(**kwargs)
+
         self.data = []
+
+        self.updater = ProjectListUpdater(self)
+        self.updater.refresh()
+
+
+class ProjectListUpdater(Subscriber):
+
+    def __init__(self, project_list):
+        super().__init__(handlers={
+            Event.cache_cleared: self.reset,
+            Event.cache_added_event: self.add_to_list,
+            Event.cache_deleted_event: self.delete_from_list
+        })
+
+        self.project_list = project_list
+
+        self.project_service = context.get_project_service()
+        self.projects_state = context.get_projects_state()
+        self.projects_state.subscribe(self)
+
         self.refresh()
 
+    def reset(self):
+        self.project_list.data.clear()
+
     def refresh(self):
-        self.data = [{'text': f"{item.name} - {item.path}"} for item in self.project_service.get_all_projects()]
+        self.project_list.data = [{
+            "id": item_id,
+            "text": f"{item.name} - {item.path}"}
+            for item_id, item in self.projects_state.items()
+        ]
+
+    def add_to_list(self, event, **kwargs):
+        project = kwargs["entity"]
+        self.project_list.data.append({
+            "id": project.id,
+            "text": f"{project.name} - {project.path}"
+        })
+
+    def delete_from_list(self, event, **kwargs):
+        project_id = kwargs["entity_id"]
+
+        for i in range(0, len(self.project_list.data)):
+            if project_id == self.project_list.data[i]["id"]:
+                del self.project_list.data[i]
+                break
 
 
 class AddProjectModal(ModalView):
 
     def __init__(self, projectPathBind: str, **kwargs):
         super().__init__(**kwargs)
-        # self.projectPathBind = projectPath
         self.ids.projectPath.text = projectPathBind
 
     def add_project_clicked(self):
@@ -83,15 +117,17 @@ class ProjectPropagatorApp(App):
         project_dao = InMemoryProjectDao()
         project_service = ProjectService(project_dao)
 
-        # ctx['ProjectService'] = project_service
+        projects_state = ProjectCacheState()
 
-        # self.context['ProjectService'] = project_service
         ctx = context.ContextBuilder() \
-            .with_category("dependencies") \
+            .with_category(Context.dep_category) \
             .with_project_service(project_service) \
-            .with_category("state") \
-            .with_projects([], refresh_callback=lambda **kwargs: print("Ping!"), refresh_after=3) \
+            .with_category(Context.state_category) \
+            .with_projects(projects_state, refresh_callback=lambda **kwargs: print("Ping!"), refresh_after=3) \
             .register_in_app()
+
+        projects_state.sync()
+        project_service.dao_state_pub.subscribe(projects_state)
 
         # ctx.append_refreshable_cache("ping", [], category='test', refresh_after=3,
         #                           refresh_callback=lambda **kwargs: print("Ping!"))

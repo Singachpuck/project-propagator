@@ -1,43 +1,14 @@
+import copy
 import functools
 import uuid
-from uuid import UUID
 
 from kivy.app import App
 from kivy.cache import Cache
 
-from propagation_api.model.entity.project import Project
 from propagation_api.services.project_service import ProjectService
+from propagation_api.services.pubsub.pubsub_model import Event, \
+    ObservableDaoLinkedEntityList
 from propagation_api.utils import setInterval
-
-
-class ContextBuilder:
-
-    def __init__(self):
-        self.currentContext = Context()
-        self.currentCategory = 'default'
-
-    def with_category(self, category: str):
-        self.currentCategory = category
-        return self
-
-    def with_project_service(self, project_service: ProjectService):
-        self.currentContext.append_cache('ProjectService', project_service, category=self.currentCategory)
-        return self
-
-    def with_projects(self, projects: list[Project], **kwargs):
-        self.currentContext.append_refreshable_cache('Projects', projects, category=self.currentCategory, **kwargs)
-        return self
-
-    def build(self):
-        ctx = self.currentContext
-        self.currentContext = None
-        return ctx
-
-    def register_in_app(self):
-        App.get_running_app().context = self.currentContext
-        ctx = self.currentContext
-        self.currentContext = None
-        return ctx
 
 """
 Context with a possibility to add refresh timeout. After timeout the callback is called that has to update the value in cache.
@@ -45,6 +16,9 @@ The Context has to support observer pattern and notify the subscribers after the
 Also there must be a possibility to FORCE to update the cache thus resetting the timeout timer.
 """
 class Context:
+
+    dep_category = "dependencies"
+    state_category = "state"
 
     def __init__(self, name: str = None):
         self.categories = set()
@@ -104,5 +78,66 @@ class Context:
         self.timers = []
 
 
+"""
+Whenever entity is deleted or added CACHE event is fired
+"""
+class ProjectCacheState(ObservableDaoLinkedEntityList):
+
+    def __init__(self):
+        super().__init__(handlers={
+            Event.project_added_event: self.project_added_event_handler,
+            Event.project_deleted_event: self.project_deleted_event_handler
+        })
+
+    def sync(self):
+        self.clear()
+        for item in get_project_service().get_all_projects():
+            self[item.id] = item
+
+    # TODO: Define handlers
+    def project_added_event_handler(self, event: Event, **kwargs):
+        project = copy.copy(event.target)
+        self.append(project)
+
+    def project_deleted_event_handler(self, event: Event, **kwargs):
+        if event.target.id in self:
+            del self[event.target.id]
+
+
 def get_project_service() -> ProjectService:
-    return App.get_running_app().context.get('ProjectService', category='dependencies')
+    return App.get_running_app().context.get('ProjectService', category=Context.dep_category)
+
+
+def get_projects_state() -> ProjectCacheState:
+    return App.get_running_app().context.get('Projects', category=Context.state_category)
+
+
+# TODO: add to each "with" method decorator that checks for refresh_after and refresh_callback
+class ContextBuilder:
+
+    def __init__(self):
+        self.currentContext = Context()
+        self.currentCategory = 'default'
+
+    def with_category(self, category: str):
+        self.currentCategory = category
+        return self
+
+    def with_project_service(self, project_service: ProjectService):
+        self.currentContext.append_cache('ProjectService', project_service, category=self.currentCategory)
+        return self
+
+    def with_projects(self, projects: ProjectCacheState, **kwargs):
+        self.currentContext.append_refreshable_cache('Projects', projects, category=self.currentCategory, **kwargs)
+        return self
+
+    def build(self):
+        ctx = self.currentContext
+        self.currentContext = None
+        return ctx
+
+    def register_in_app(self):
+        App.get_running_app().context = self.currentContext
+        ctx = self.currentContext
+        self.currentContext = None
+        return ctx

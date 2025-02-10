@@ -13,3 +13,6 @@ class Project(Base):
     def __repr__(self):
         return f"Project(id={self.id}, name='{self.name}', path={self.path})"
 
+    def __copy__(self):
+        return Project(id=self.id, name=self.name, path=self.path)
+

@@ -1,4 +1,6 @@
-import shutil, os
+import os
+import shutil
+
 from propagation_api.model.dto.propagation import PropagationDto
 
 

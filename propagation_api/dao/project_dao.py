@@ -27,6 +27,10 @@ class ProjectDao(ABC):
     def getById(self, project_id: int):
         pass
 
+    # @abstractmethod
+    # def refresh(self, projects: list[Project]):
+    #     pass
+
 
 class InMemoryProjectDao(ProjectDao):
 
@@ -62,6 +66,9 @@ class InMemoryProjectDao(ProjectDao):
     def getById(self, project_id: int):
         result = filter(lambda item: item.id == project_id, self.projects)
         return result if len(result) > 0 else None
+
+    # def refresh(self, projects: list[Project]):
+    #     if len(self.projects)
 
 
 class ORMProjectDao(ProjectDao):
