@@ -1,5 +1,18 @@
 #:kivy 1.0.9
 
+<FileBrowser>:
+    size_hint: 1, None
+    TextInput:
+        multiline: False
+        halign: 'center'
+        size_hint_x: .8
+#                padding: 0, 10, 0, 10
+        #font_size: 24
+    Button:
+        text: 'Browse'
+        size_hint_x: .2
+        on_release: root.select_file()
+
 <MainMenu>:
     AnchorLayout:
         anchor_x: 'center'
@@ -20,9 +33,25 @@
                 on_press: app.stop()
 
 <PropagateProjectScreen>:
-    Label:
-        font_size: 70
-        text: 'Propagate project'
+#    Label:
+#        font_size: 70
+#        text: 'Propagate project'
+    BoxLayout:
+        orientation: 'vertical'
+        FileBrowser:
+            id: propagatePath
+            height: 50
+            font_size: 24
+        ProjectList:
+        BoxLayout:
+            size_hint_y: None
+            height: 30
+            Button:
+                text: "Back"
+                on_release: root.cancel()
+            Button:
+                text: "Propagate"
+                on_release: root.propagate_clicked()
 
 <ConfigureProjectsScreen>:
     BoxLayout:
@@ -30,20 +59,26 @@
 #        size: root.size
 #        pos: root.pos
         orientation: "vertical"
-        BoxLayout:
-            size_hint_y: None
+        FileBrowser:
+            id: inputProjectDir
             height: 50
-            TextInput:
-                id: inputProjectDir
-                multiline: False
-                halign: 'center'
-                size_hint_x: .8
-#                padding: 0, 10, 0, 10
-                font_size: 24
-            Button:
-                text: 'Browse'
-                size_hint_x: .2
-                on_release: root.select_file()
+            font_size: 24
+#        BoxLayout:
+#            size_hint_y: None
+#            height: 50
+#
+#                font_size: 24
+#
+#            TextInput:
+#                multiline: False
+#                halign: 'center'
+#                size_hint_x: .8
+##                padding: 0, 10, 0, 10
+#                font_size: 24
+#            Button:
+#                text: 'Browse'
+#                size_hint_x: .2
+#                on_release: root.select_file()
 #        FileChooserListView:
 #            id: filechooser
 #            path: "D:\\projects"
@@ -54,7 +89,7 @@
             size_hint_y: None
             height: 30
             Button:
-                text: "Cancel"
+                text: "Back"
                 on_release: root.cancel()
             Button:
                 text: "Add Project"

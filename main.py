@@ -1,26 +1,36 @@
 from kivy.app import App
 from kivy.lang import Builder
+from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.modalview import ModalView
 from kivy.uix.recycleview import RecycleView
 from kivy.uix.screenmanager import ScreenManager, Screen, NoTransition
+from kivy.uix.textinput import TextInput
+from kivy.uix.widget import Widget
 
 from propagation_api.dao.project_dao import InMemoryProjectDao
+from propagation_api.model.dto.propagation import PropagationDto
 from propagation_api.model.entity.project import Project
 from propagation_api.services import context
 from propagation_api.services.context import ProjectCacheState, Context
 from propagation_api.services.project_service import ProjectService
+from propagation_api.services.propagation_service import PropagationService
 from propagation_api.services.pubsub.pubsub_model import Subscriber, Event
 
 
-class MainMenu(Screen):
-    pass
+class FileBrowser(BoxLayout):
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
-class PropagateProjectScreen(Screen):
-    pass
+    @property
+    def file_path(self):
+        for child in self.children:
+            if isinstance(child, TextInput):
+                return child
 
-
-class ConfigureProjectsScreen(Screen):
+    @property
+    def text(self):
+        return self.file_path.text
 
     def select_file(self):
         from plyer import filechooser
@@ -28,11 +38,38 @@ class ConfigureProjectsScreen(Screen):
 
     def selected(self, selected):
         if len(selected) > 0:
-            self.ids.inputProjectDir.text = selected[0]
+            self.file_path.text = selected[0]
+
+
+class MainMenu(Screen):
+    pass
+
+
+class PropagateProjectScreen(Screen):
+
+    def __init__(self, **kw):
+        super().__init__(**kw)
+
+        self.propagation_service = context.get_propagation_service()
+
+    # TODO: Propagation
+    def propagate_clicked(self):
+        propagation = PropagationDto()
+        self.propagation_service.propagate_project()
+        pass
+
+    def cancel(self):
+        self.manager.current = "main_menu"
+
+
+class ConfigureProjectsScreen(Screen):
 
     def add_project_clicked(self):
         add_project_modal = AddProjectModal(self.ids.inputProjectDir.text)
         add_project_modal.open()
+
+    def cancel(self):
+        self.manager.current = "main_menu"
 
 
 class ProjectList(RecycleView):
@@ -116,12 +153,14 @@ class ProjectPropagatorApp(App):
         # project_dao = ORMProjectDao(engine)
         project_dao = InMemoryProjectDao()
         project_service = ProjectService(project_dao)
+        propagation_service = PropagationService()
 
         projects_state = ProjectCacheState()
 
-        ctx = context.ContextBuilder() \
+        context.ContextBuilder() \
             .with_category(Context.dep_category) \
             .with_project_service(project_service) \
+            .with_propagation_service(propagation_service) \
             .with_category(Context.state_category) \
             .with_projects(projects_state, refresh_callback=lambda **kwargs: print("Ping!"), refresh_after=3) \
             .register_in_app()

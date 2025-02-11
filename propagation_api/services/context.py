@@ -4,12 +4,14 @@ import uuid
 
 from kivy.app import App
 from kivy.cache import Cache
+from kivy.clock import Clock
 
 from propagation_api.services.project_service import ProjectService
+from propagation_api.services.propagation_service import PropagationService
 from propagation_api.services.pubsub.pubsub_model import Event, \
     ObservableDaoLinkedEntityList
-from propagation_api.utils import setInterval
 
+# TODO: Unit test
 """
 Context with a possibility to add refresh timeout. After timeout the callback is called that has to update the value in cache.
 The Context has to support observer pattern and notify the subscribers after the update.
@@ -61,11 +63,11 @@ class Context:
 
     @__complete_category_decor
     @__category_check_decor
-    def append_refreshable_cache(self, key, value, category, refresh_after=10.0, refresh_callback=None, subscribers=None):
+    def append_refreshable_cache(self, key, value, category, refresh_after=10.0, refresh_callback=None):
         Cache.append(category, key, value)
 
         if refresh_callback is not None:
-            self.timers.append(setInterval(refresh_callback, refresh_after, target=value, subscribers=subscribers))
+            Clock.schedule_interval(lambda _: refresh_callback(target=value), refresh_after)
 
     @__complete_category_decor
     def get(self, key, category, default=None):
@@ -104,12 +106,22 @@ class ProjectCacheState(ObservableDaoLinkedEntityList):
             del self[event.target.id]
 
 
-def get_project_service() -> ProjectService:
-    return App.get_running_app().context.get('ProjectService', category=Context.dep_category)
+def get_project_service(context=None) -> ProjectService:
+    if context is None:
+        context = App.get_running_app().context
+    return context.get('ProjectService', category=Context.dep_category)
 
 
-def get_projects_state() -> ProjectCacheState:
-    return App.get_running_app().context.get('Projects', category=Context.state_category)
+def get_propagation_service(context=None) -> PropagationService:
+    if context is None:
+        context = App.get_running_app().context
+    return context.get('PropagationService', category=Context.dep_category)
+
+
+def get_projects_state(context=None) -> ProjectCacheState:
+    if context is None:
+        context = App.get_running_app().context
+    return context.get('Projects', category=Context.state_category)
 
 
 # TODO: add to each "with" method decorator that checks for refresh_after and refresh_callback
@@ -126,6 +138,9 @@ class ContextBuilder:
     def with_project_service(self, project_service: ProjectService):
         self.currentContext.append_cache('ProjectService', project_service, category=self.currentCategory)
         return self
+
+    def with_propagation_service(self, propagation_service: PropagationService):
+        self.currentContext.append_cache('PropagationService', propagation_service, category=self.currentCategory)
 
     def with_projects(self, projects: ProjectCacheState, **kwargs):
         self.currentContext.append_refreshable_cache('Projects', projects, category=self.currentCategory, **kwargs)

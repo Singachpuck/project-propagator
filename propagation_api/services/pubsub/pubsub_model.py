@@ -1,7 +1,7 @@
 from abc import ABC
 from typing import Any
 
-
+# TODO: Unit test
 class Event:
 
     project_added_event = "PROJECT_ADDED"
