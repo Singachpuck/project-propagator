@@ -141,6 +141,7 @@ class ContextBuilder:
 
     def with_propagation_service(self, propagation_service: PropagationService):
         self.currentContext.append_cache('PropagationService', propagation_service, category=self.currentCategory)
+        return self
 
     def with_projects(self, projects: ProjectCacheState, **kwargs):
         self.currentContext.append_refreshable_cache('Projects', projects, category=self.currentCategory, **kwargs)

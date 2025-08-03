@@ -58,14 +58,15 @@ class InMemoryProjectDao(ProjectDao):
         return True
 
     def removeById(self, project_id: int):
-        raise NotImplementedError()
+        p = self.getById(project_id)
+        if p is not None:
+            self.remove(p)
 
     def getAll(self):
         return self.projects
 
     def getById(self, project_id: int):
-        result = filter(lambda item: item.id == project_id, self.projects)
-        return result if len(result) > 0 else None
+        return next((item for item in self.projects if item.id == project_id), None)
 
     # def refresh(self, projects: list[Project]):
     #     if len(self.projects)

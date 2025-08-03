@@ -1,8 +1,14 @@
 from kivy.app import App
 from kivy.lang import Builder
+from kivy.properties import ObjectProperty, BooleanProperty
+from kivy.uix.behaviors import FocusBehavior
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.label import Label
 from kivy.uix.modalview import ModalView
+from kivy.uix.recycleboxlayout import RecycleBoxLayout
 from kivy.uix.recycleview import RecycleView
+from kivy.uix.recycleview.layout import LayoutSelectionBehavior
+from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivy.uix.screenmanager import ScreenManager, Screen, NoTransition
 from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
@@ -50,37 +56,60 @@ class PropagateProjectScreen(Screen):
     def __init__(self, **kw):
         super().__init__(**kw)
 
-        self.propagation_service = context.get_propagation_service()
+        self._propagation_service = context.get_propagation_service()
+        self._project_state = context.get_projects_state()
+        self._project_list_w = self.ids.projectList
+        self._prop_path_w = self.ids.propagatePath
 
-    # TODO: Propagation
     def propagate_clicked(self):
-        propagation = PropagationDto()
-        self.propagation_service.propagate_project()
-        pass
+        p_id = self._project_list_w.get_selected_project_id()
+        selected_project = self._project_state[p_id] if p_id in self._project_state else None
+        if selected_project is not None and len(self._prop_path_w.text) > 0:
+            propagation = PropagationDto(project=selected_project, dst=self._prop_path_w.text)
+            self._propagation_service.propagate_project(propagation)
 
     def cancel(self):
         self.manager.current = "main_menu"
 
 
 class ConfigureProjectsScreen(Screen):
+    def __init__(self, **kw):
+        super().__init__(**kw)
+
+        self._project_service = context.get_project_service()
+        self._project_list_w = self.ids.projectList
 
     def add_project_clicked(self):
         add_project_modal = AddProjectModal(self.ids.inputProjectDir.text)
         add_project_modal.open()
 
+    # TODO
+    def modify_project_clicked(self):
+        pass
+
+    def delete_project_clicked(self):
+        p_id = self._project_list_w.get_selected_project_id()
+        if p_id is not None:
+            self._project_service.delete_project_by_id(p_id)
+
     def cancel(self):
         self.manager.current = "main_menu"
 
 
-class ProjectList(RecycleView):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        self.data = []
-
-        self.updater = ProjectListUpdater(self)
-        self.updater.refresh()
-
+# class ProjectList(RecycleView):
+#     def __init__(self, **kwargs):
+#         super().__init__(**kwargs)
+#
+#         self.data = []
+#
+#         self.updater = ProjectListUpdater(self)
+#         self.updater.refresh()
+#
+#     def supply_item(self, project):
+#         return {
+#             "id": project.id,
+#             "text": f"{project.name} - {project.path}"
+#         }
 
 class ProjectListUpdater(Subscriber):
 
@@ -103,18 +132,14 @@ class ProjectListUpdater(Subscriber):
         self.project_list.data.clear()
 
     def refresh(self):
-        self.project_list.data = [{
-            "id": item_id,
-            "text": f"{item.name} - {item.path}"}
-            for item_id, item in self.projects_state.items()
+        self.project_list.data = [
+            self.project_list.supply_item(project)
+            for project_id, project in self.projects_state.items()
         ]
 
     def add_to_list(self, event, **kwargs):
         project = kwargs["entity"]
-        self.project_list.data.append({
-            "id": project.id,
-            "text": f"{project.name} - {project.path}"
-        })
+        self.project_list.data.append(self.project_list.supply_item(project))
 
     def delete_from_list(self, event, **kwargs):
         project_id = kwargs["entity_id"]
@@ -123,7 +148,6 @@ class ProjectListUpdater(Subscriber):
             if project_id == self.project_list.data[i]["id"]:
                 del self.project_list.data[i]
                 break
-
 
 class AddProjectModal(ModalView):
 
@@ -140,6 +164,61 @@ class AddProjectModal(ModalView):
 
         self.dismiss()
 
+class SelectableProjectList(RecycleView):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.data = []
+        self._project_service = context.get_project_service()
+
+        self.updater = ProjectListUpdater(self)
+        self.updater.refresh()
+
+    def supply_item(self, project):
+        return {
+            "id": project.id,
+            "text": f"{project.name} - {project.path}"
+        }
+
+    def get_selected_project_id(self) -> int | None:
+        child = next(filter(lambda ch: isinstance(ch, SelectableLabel) and ch.selected, self.ids.listLayout.children), None)
+        if child is None:
+            return None
+
+        return child.id
+
+class SelectableRecycleBoxLayout(FocusBehavior, LayoutSelectionBehavior,
+                                 RecycleBoxLayout):
+    ''' Adds selection and focus behavior to the view. '''
+    pass
+
+
+class SelectableLabel(RecycleDataViewBehavior, Label):
+    ''' Add selection support to the Label '''
+    index = None
+    selected = BooleanProperty(False)
+    selectable = BooleanProperty(True)
+
+    def refresh_view_attrs(self, rv, index, data):
+        ''' Catch and handle the view changes '''
+        self.index = index
+        return super(SelectableLabel, self).refresh_view_attrs(
+            rv, index, data)
+
+    def on_touch_down(self, touch):
+        ''' Add selection on touch down '''
+        if super(SelectableLabel, self).on_touch_down(touch):
+            return True
+        if self.collide_point(*touch.pos) and self.selectable:
+            return self.parent.select_with_touch(self.index, touch)
+
+    def apply_selection(self, rv, index, is_selected):
+        ''' Respond to the selection of items in the view. '''
+        self.selected = is_selected
+        if is_selected:
+            print("selection changed to {0}".format(rv.data[index]))
+        else:
+            print("selection removed for {0}".format(rv.data[index]))
 
 class ProjectPropagatorApp(App):
     def __init__(self, **kwargs):
@@ -166,7 +245,7 @@ class ProjectPropagatorApp(App):
             .register_in_app()
 
         projects_state.sync()
-        project_service.dao_state_pub.subscribe(projects_state)
+        project_service._dao_state_pub.subscribe(projects_state)
 
         # ctx.append_refreshable_cache("ping", [], category='test', refresh_after=3,
         #                           refresh_callback=lambda **kwargs: print("Ping!"))
